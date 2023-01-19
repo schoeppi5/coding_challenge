@@ -16,3 +16,6 @@ helm upgrade \
     monitoring \
     prometheus-community/kube-prometheus-stack \
     -f ./k8s/helm/prometheus-operator/values.yaml
+
+# deploy demo app
+kubectl apply -k ./k8s/kustomize/kuard
