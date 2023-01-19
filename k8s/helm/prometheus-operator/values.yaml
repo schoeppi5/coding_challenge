@@ -8,3 +8,10 @@ alertmanager:
 grafana:
   enabled: true
   namespaceOverride: monitoring
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://logging.logging.svc.cluster.local:3100
+      jsonData:
+        maxLines: 1000

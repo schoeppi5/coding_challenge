@@ -1,0 +1,71 @@
+nameOverride: logging
+
+loki:
+  enableServiceLinks: true
+  auth_enabled: false
+  server:
+    http_listen_port: 3100
+    grpc_listen_port: 9095
+  storage:
+    bucketNames:
+      chunks: chunks
+      ruler: ruler
+      admin: admin
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+
+serviceAccount:
+  create: true
+
+test:
+  enabled: false
+
+monitoring:
+  dashboards:
+    enabled: true
+    namespace: monitoring
+
+  rules:
+    enabled: false
+    alerting: false
+
+  serviceMonitor:
+    enabled: true
+    namespaceSelector: 
+      matchNames:
+        - logging
+    metricsInstance:
+      enabled: false
+
+  selfMonitoring:
+    enabled: false
+    grafanaAgent:
+      installOperator: false
+
+  lokiCanary:
+    enabled: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 64Mi
+      requests:
+        cpu: 100m
+        memory: 64Mi
+
+singleBinary:
+  replicas: 1
+  targetModule: "all"
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: standard
+
