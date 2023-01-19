@@ -1,0 +1,10 @@
+namespaceOverride: monitoring
+
+defaultRules:
+  create: false
+
+alertmanager:
+  enabled: false
+grafana:
+  enabled: true
+  namespaceOverride: monitoring
