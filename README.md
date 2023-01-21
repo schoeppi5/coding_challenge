@@ -5,7 +5,7 @@
 - Initial setup: ~40min
 - App setup: ~15min
 - Logging: 90min
-- HPA: tbd 
+- HPA: 50min
 - Templating: tbd
 - Rollback: tbd
 - Metrics: tbd
@@ -137,4 +137,60 @@ the datasource is still there:
 
 ![datasources](img/datasources.png)
 
+## Challenge 2: Autoscaling
 
+To be honest, this challenge had me stumped for a moment. The way it is phrased had my mind going towards load-testing, but I couldn't
+really think of a Kubernetes native way to implement something like that aside from creating a Job/Pod that would just fire as many
+HTTP requests as it could. But that would neither assure an application can handle high real-world loads, nor would it be a particular
+meaningful test.
+
+But then the assure had me going towards autoscaling and particularly `Horizontal Pod Autoscaling` (aka. HPA).
+
+So I went in that direction and hope this satisfies the challenge.
+
+Implementing a rudimentary autoscaling setup is - again - really straight forward:
+
+1. Create an HPA resource using the built-in kubectl command:
+  
+  ```bash
+  kubectl autoscale --namespace app deployment kuard --min 1 --max 10 --cpu-percent=80 --name=kuard --output yaml --dry-run=client > k8s/kustomize/kuard/hpa.yaml
+  ```
+   > It wouldn't let me do the server-side render (`--dry-run=server`) for some weird reason and just quite with:
+   > `error: /, Kind= doesn't support dryRun`
+   > So I just went with the client-side render and that worked
+2. Add it to the kustomize directory and add it to the `resources` array in the `kustomization.yaml`
+   > Kustomize has a built-in `nameReference` for Deployment -> HorizontalPodAutoscaler, which keeps them linked together
+
+I went with `cpuPercentage` as the auto-scaling metric, since HTTP requests to stateless applications - in my experience - usually
+are more CPU than Memory heavy. In a more sophisticated autoscaling setup, this could be tweaked in two main ways:
+
+1. Use a custom metric like HTTP requests rate, or average response time
+2. Go further with the autoscaling and implement a *cluster-autoscaler*, since the applications capacity is currently limited by the
+   size of the cluster
+
+And, of course, I forgot about the tiny detail, that a metrics based autoscaler actually needs metrics:
+![hpa_metrics](img/hpa_metrics.png)
+
+But that is easily fixed by providing an implementation for the Kubernetes metrics API. There are two, that I am currently aware of:
+
+1. [Kubernetes SIG Metrics server](https://github.com/kubernetes-sigs/metrics-server)
+2. [Kubernetes SIG Prometheus adapter](https://github.com/kubernetes-sigs/prometheus-adapter)
+
+Both would work, but I think it is easiest when all metrics used by a system have a single source of truth. So I am going with the *Prometheus adapter*, which uses Prometheus as its datasource and converts those metrics to the Kubernetes metrics API format.
+
+The great Prometheus community maintains a Helm Chart for it, so I am going to use that to install it.
+
+After installing it and testing it, I noticed, that the HPA still wasn't picking up any metrics. After a quick look into the documentation on how to configure it, I noticed, that I forgot to add the config for the `pod.metrics` API.
+
+What had me worried was, that after that fix `kubectl top` was still showing me `0m` CPU load for the app:
+![metrics_low](img/metrics_low.png)
+
+Guessing there was something wrong with my Prometheus setup, I quickly did a `kubectl top` on the Grafana pod:
+![metrics_working](img/metrics_working.png)
+
+which, to my great relieve, showed me, that everyting was working as intended, but the demo app just has a redicliously low CPU utilization.
+
+And now, after checking the HPA again:
+![hpa_working](img/hpa_working.png)
+
+everything was working as intended. 😄
