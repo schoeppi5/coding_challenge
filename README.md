@@ -4,14 +4,17 @@
 
 - Initial setup: ~40min
 - App setup: ~15min
+
+**Sub-total setup: 55min**
+
 - Logging: 90min
 - HPA: 50min
-- Templating: tbd
+- Templating: 44min
 - Rollback: tbd
 - Metrics: tbd
 - CI/CD tool choice: tbd
 
-**Total: tbd**
+**Sub-total challenges: tbd**
 
 > Please keep in mind, that while some timestamps or uptimes in the screenshots and elsewhere might suggest, that I took way longer
 > for the tasks than I indicated above, but I did take breaks in between and didn't finish it all in one sitting 😉
@@ -193,4 +196,61 @@ which, to my great relieve, showed me, that everyting was working as intended, b
 And now, after checking the HPA again:
 ![hpa_working](img/hpa_working.png)
 
-everything was working as intended. 😄
+everything was working as intended! 😄
+
+## Challenge 3: Templating issues
+
+How one can spot issues with templating, actually depends on what one considers as an issue. This is an interesting question and has
+many ways to go about this.
+
+### Syntactical errors
+
+Depending on the templating tool used, these are generally easy to spot before an application is deployed.
+
+**Kustomize** is straight forward here. It will spot YAML format errors (wrong indentation manly) and will complain, if it can't accumulate all resources. This should cover the basic errors in how the Kustomize structure is setup and if the resources are formatted correctly.
+
+**Helm** has similar possibilities. It comes with a `lint` sub-command, which generally spots most issues in the templating of a chart.
+It also has a `dry-run` capability, with which I can assure, that the chart actually renders to something resembling a Kubernetes manifest.
+
+### Manifest validation
+
+Neither tool actually makes sure, that what it produces are valid Kubernetes Manifests. I can use a tool like [kubeconform](https://github.com/yannh/kubeconform) (which is inspired by `kubeeval`) to make sure, that all manifests a templating tool produces are actually valid Kubernetes manifests. It does that, by comparing all generated manifests (optained by either doing a `kustomize build` or a `helm template`) to their respective OpenAPIv3 specs. You can even extend these specs with the ones for CRDs to cover all manifests.
+
+[Pluto](https://github.com/FairwindsOps/pluto) can also help to spot soon to be deprecated APIs early enough, before they are removed from Kubernetes.
+
+At this point, we have validated, that the Helm chart / Kustomize config will produce valid, appliable Kubernetes manifests.
+
+### Best practices
+
+If we want to take this one step further, we can also check for common best-practices.
+[kube-score](https://github.com/zegl/kube-score) can provide common best-practices for a lot of Kubernetes resources.
+
+This way, we can catch stuff like not set resource limits/requests, missing probes, Statefulsets without a headless service and many more, before the application ever gets deployed.
+
+Another way to go about this is with policies. Tools like [Datree](https://www.datree.io/) can check manifests against policies defined in a Kubernetes cluster, before they are deployed.
+These tools are most often combined with `ValidatingWebhooks`, which block misconfigured deployments at deploy-time.
+
+### Implementation
+
+Since the challenge actually calls for an implementation and I am going to focus on `kubeconform` and `kube-score`.
+You can find the implementation in [the Kustomize directory](k8s/kustomize/kuard/check.sh).
+
+After changing the `containerPort` in the deployment from a number to a string, `kubeconform` complained about it:
+![kubeconform](img/kubeconform.png)
+
+And `kube-score` actually found quite alot of infringements:
+![kube-score_fail](img/kube-score_fail.png)
+
+Damn 😑. Let's fix those.
+
+After fixing these failures, `kube-score` is happy again:
+![kube-score_success](img/kube-score_success.png)
+
+> To be honest, I did ignore three quality gates: Regarding PodDisruptionBudget, NetworkPolicy and PodAntiAffinity
+> since they don't usefully apply to the demo use-case.
+
+### Honorable mentions
+
+[Kubernetes Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) can help secure pods,
+by warning / enforcing security best-practices defined by the Kubernetes maintainers on a namespace level.
+This doesn't really fit the challenge, since this is only effective at deploy-time.
