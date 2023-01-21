@@ -2,9 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kuard
+  annotations:
+    # I am ignoring poddisruptionbudgets, networkpolicy and podantiaffinity since they don't apply to the demo use-case
+    kube-score/ignore: deployment-has-poddisruptionbudget,pod-networkpolicy,deployment-has-host-podantiaffinity
 spec:
+  selector: {}
   progressDeadlineSeconds: 600
-  replicas: 1
   revisionHistoryLimit: 10
   strategy:
     rollingUpdate:
@@ -15,22 +18,45 @@ spec:
     spec:
       containers:
       - image: kuard
-        imagePullPolicy: IfNotPresent
+        securityContext:
+          capabilities:
+            drop:
+              - all
+          privileged: false
+          readOnlyRootFilesystem: true
+        imagePullPolicy: Always
         name: kuard-amd64
         ports:
         - containerPort: 8080
           protocol: TCP
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+        livenessProbe:
+          httpGet:
+            path: /healthy
+            port: http
         resources:
           limits:
             cpu: 200m
             memory: 100Mi
+            ephemeral-storage: 10Mi
           requests:
             cpu: 100m
             memory: 50Mi
+            ephemeral-storage: 10Mi
         terminationMessagePath: /dev/termination-log
         terminationMessagePolicy: File
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       schedulerName: default-scheduler
-      securityContext: {}
+      securityContext:
+        runAsGroup: 65534 # nobody
+        runAsNonRoot: true
+        fsGroup: 65534 # nobody
+        runAsUser: 65534 # nobody
+        seccompProfile:
+          type: RuntimeDefault
       terminationGracePeriodSeconds: 30
