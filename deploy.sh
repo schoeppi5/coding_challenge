@@ -41,3 +41,12 @@ helm upgrade \
     --kube-context $K8S_CONTEXT \
     --values ./k8s/helm/promtail/values.yaml\
     promtail grafana/promtail
+
+# challenge 2: Install prometheus-adapter for K8s metrics
+helm upgrade \
+    --install \
+    --create-namespace \
+    --namespace $MONITORING_NAMESPACE \
+    --values k8s/helm/prometheus-adapter/values.yaml \
+    --kube-context $K8S_CONTEXT \
+    prometheus-adapter prometheus-community/prometheus-adapter
