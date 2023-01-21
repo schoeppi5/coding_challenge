@@ -12,9 +12,9 @@
 - Templating: 44min
 - Rollback: 20min
 - Metrics: 7min
-- CI/CD tool choice: tbd
+- CI/CD tool choice: 8min
 
-**Sub-total challenges: tbd**
+**Sub-total challenges: 219min**
 
 > Please keep in mind, that while some timestamps or uptimes in the screenshots and elsewhere might suggest, that I took way longer
 > for the tasks than I indicated above, but I did take breaks in between and didn't finish it all in one sitting 😉
@@ -255,6 +255,8 @@ After fixing these failures, `kube-score` is happy again:
 by warning / enforcing security best-practices defined by the Kubernetes maintainers on a namespace level.
 This doesn't really fit the challenge, since this is only effective at deploy-time.
 
+There are also alot of useful plugins for IDEs and editors, that offer IntelliSense for Helm and Kubernetes objects
+
 ## Challenge 4: Rollback
 
 I just noticed, that I am running a bit out of time here, so I am going to try to keep my answeres a bit more precise and to the point.
@@ -302,3 +304,21 @@ Beside the metrics the application exports, we can also get metrics regarding th
 
 - cAdvisor (built in the Kubelet) tells us everything about the containers that make up the application
 - Kube-state-metrics tells us everything about the Kubernetes-level resources (pods, services, etc.)
+
+## Challenge 6: CI/CD tool choice
+
+There is a huge number of CI/CD tools to choose from here, so I am going to choose the once I am most familiar with or I see as a good fit.
+
+For building, testing and packaging / deliverying the app, I would choose [GitHub Actions](https://github.com/features/actions).
+
+- It is directly integrated into GitHub, where this repository is hosted
+- It can trigger builds on various different events, such as pushes, PR opened, merges and lots more
+- It is easy to use with an incredible number of officially and community maintained actions ready for use
+- I have (some) previouse experience with it, as we started using it in my current company
+
+For deploying the app to a Kubernetes cluster, I would choose [Flux CD](https://fluxcd.io/).
+
+- It has recently reached *Graduate* status within the CNCF, which reflects the majurity of the product
+- It brings a wealth of useful features to the table, such as Helm integration, Kustomize support, support for different sources (OCI, Git, HelmRepository), integration with Flagger (Deployment tool)
+- It is easy to setup and integrates well with GitHub (using `flux bootstrap` sets it up in a cluster and Flux manages itself)
+- I have about a year worth of experience with it and know my way around it
