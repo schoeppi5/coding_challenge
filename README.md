@@ -10,7 +10,7 @@
 - Logging: 90min
 - HPA: 50min
 - Templating: 44min
-- Rollback: tbd
+- Rollback: 20min
 - Metrics: tbd
 - CI/CD tool choice: tbd
 
@@ -254,3 +254,38 @@ After fixing these failures, `kube-score` is happy again:
 [Kubernetes Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) can help secure pods,
 by warning / enforcing security best-practices defined by the Kubernetes maintainers on a namespace level.
 This doesn't really fit the challenge, since this is only effective at deploy-time.
+
+## Challenge 4: Rollback
+
+I just noticed, that I am running a bit out of time here, so I am going to try to keep my answeres a bit more precise and to the point.
+
+The idea here is, if I rollout a new version of an app and notice something is wrong with the new version, I want to roll back to the previouse version.
+
+There are again multiple ways to go about this:
+
+- Kubernetes has a built in feature, that a Deployment keeps (by default) the last ten Replicasets.
+- Helm keeps all previously applied configurations of a release in secrets, so you can always to a `helm rollback` to a specific revision
+- You can employ more sophisticated deployment approaches such as Blue/Green deployments or canary releases.
+  Depending on their implementation, they use one of the machanisms described above to enable the user to switch between two versions
+  deployed simultaneously
+
+Since I am using kustomize to deploy the app, I am going to use the built-in Kubernetes way of doing it.
+
+First, we check the rollout history for the deployed app:
+![rollout_history](img/rollout_before.png)
+
+Then we apply our change in version:
+![apply](img/kustomize_apply.png)
+
+We can see, that the pod was updated:
+![new pod](img/new_pod.png)
+
+Now we can do a rollback (or more accurately a `rollout undo`):
+![rollback](img/rollback.png)
+
+We can check, that the old Replicaset was scaled up again: 
+![Replicasets](img/replicasets.png)
+
+And see, that a new (old) pod was created:
+![old pod](img/old_pod.png)
+
