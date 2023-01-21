@@ -11,7 +11,7 @@
 - HPA: 50min
 - Templating: 44min
 - Rollback: 20min
-- Metrics: tbd
+- Metrics: 7min
 - CI/CD tool choice: tbd
 
 **Sub-total challenges: tbd**
@@ -289,3 +289,16 @@ We can check, that the old Replicaset was scaled up again:
 And see, that a new (old) pod was created:
 ![old pod](img/old_pod.png)
 
+## Metrics
+
+The application actively exports metrics on `/metrics` ([http://localhost:9090/metrics](http://localhost:9090/metrics)).
+Besides the normal Golang metrics (go-routine count, version, etc.), we can also find specific metrics, such as:
+
+- HTTP requests / response duration / size
+- Process information (open FD, start time, memory consumption, etc.)
+- HTTP request duration per path and categorized in buckets
+
+Beside the metrics the application exports, we can also get metrics regarding the application from other pieces of the infrastructure:
+
+- cAdvisor (built in the Kubelet) tells us everything about the containers that make up the application
+- Kube-state-metrics tells us everything about the Kubernetes-level resources (pods, services, etc.)
