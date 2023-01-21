@@ -1,5 +1,30 @@
 # Coding challenge
 
+- [Coding challenge](#coding-challenge)
+  - [Time spent](#time-spent)
+  - [Step 0.1: Creating Kubernetes cluster](#step-01-creating-kubernetes-cluster)
+  - [Step 0.2: Deploying monitoring solution](#step-02-deploying-monitoring-solution)
+  - [Step 0.3: Creating a Helm chart for the demo application](#step-03-creating-a-helm-chart-for-the-demo-application)
+  - [Challenge 1: Logging](#challenge-1-logging)
+  - [Challenge 2: Autoscaling](#challenge-2-autoscaling)
+  - [Challenge 3: Templating issues](#challenge-3-templating-issues)
+    - [Syntactical errors](#syntactical-errors)
+    - [Manifest validation](#manifest-validation)
+    - [Best practices](#best-practices)
+    - [Implementation](#implementation)
+    - [Honorable mentions](#honorable-mentions)
+  - [Challenge 4: Rollback](#challenge-4-rollback)
+  - [Metrics](#metrics)
+  - [Challenge 6: CI/CD tool choice](#challenge-6-cicd-tool-choice)
+  - [Additional challenges](#additional-challenges)
+    - [Ingress controller](#ingress-controller)
+    - [Alerting](#alerting)
+    - [TSDB writing](#tsdb-writing)
+    - [Secrets in GIT](#secrets-in-git)
+    - [Remove clear secrets from GIT](#remove-clear-secrets-from-git)
+  - [Conclusion](#conclusion)
+
+
 ## Time spent
 
 - Initial setup: ~40min
@@ -15,6 +40,13 @@
 - CI/CD tool choice: 8min
 
 **Sub-total challenges: 219min**
+
+- Additionals: 25min
+
+**Total: 55min + 219min + 25min = 299min**
+
+> I am not sure, if the preparation time should be included here or not.
+> I included it for completeness sake.
 
 > Please keep in mind, that while some timestamps or uptimes in the screenshots and elsewhere might suggest, that I took way longer
 > for the tasks than I indicated above, but I did take breaks in between and didn't finish it all in one sitting 😉
@@ -322,3 +354,90 @@ For deploying the app to a Kubernetes cluster, I would choose [Flux CD](https://
 - It brings a wealth of useful features to the table, such as Helm integration, Kustomize support, support for different sources (OCI, Git, HelmRepository), integration with Flagger (Deployment tool)
 - It is easy to setup and integrates well with GitHub (using `flux bootstrap` sets it up in a cluster and Flux manages itself)
 - I have about a year worth of experience with it and know my way around it
+
+## Additional challenges
+
+### Ingress controller
+
+Traffic is usually split in two categories: Ingress and Egress traffic, deriving from the latin *gressere* (to walk) and *in* and *ex* for in and out respectively.
+
+So, therefore, an Ingress controller manages how traffic comes into a Kubernetes cluster.
+In essence it is a reverse proxy exposed to the outside by a Service of type `LoadBalancer`
+or `NodePort` (or by accessing the host network), that accepts incoming connections and routes them using services to the correct applications.
+
+The configuration for such an Ingress controller is managed by Ingress resources. These contain the necessary information telling the Ingress controller how to get to the application, what hostname to use for it, which Service is responsible for which subpath, which TLS certificate to use and much more.
+
+An example ingress resource for the demo application could look like this:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kuard
+  namespace: app
+spec:
+  rules:
+  - host: demo.local
+    http:
+      paths:
+      - backend:
+          service:
+            name: kuard
+            port:
+              number: 80
+        path: /
+        pathType: Exact
+```
+
+### Alerting
+
+Alerting within Kubernetes can come in many different shapes and sizes. Even the rather simle monitoring setup used in this demo already has two very common ways to facilitate alerting.
+
+Either Grafana or [Prometheus Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) could be used to achieve similar results.
+
+Alertmanager is generally more flexiible when it comes to what you want to alert on
+and integrates very well with Prometheus.
+
+Grafana on the other hand, has taken a very central place in the observability market, integrates with pretty much any monitoring and alerting system out there, even Alertmanager.
+
+The general idea of alerting is, that if a certain query produces an outcome greater or lesser a certain threshold; I want to now about it. This also extends to outages, but the idea stays the same.
+
+What would this look like? In this specific demo, Prometheus operator can also operate Alertmanager installations and comes with CRDs to define so called Prometheus rules. These rules esentially contain the query, the threshold and some metadata. Alertmanager than looks at the firing alerts and based on its config and the alert, decides, where this alert should go to.
+
+### TSDB writing
+
+Prometheus main way of getting metrics in its TSDB is by ingesting them. This is essentially the process after scraping them from a target. The metrics get labeled and sorted in their timeseries.
+
+There is however another way to get metrics into Prometheus. Prometheus introduced the Remote write API, that enables other componets to write metrics more or less directly to the TSDB without having to go through scraping.
+
+This is for example used by Grafana Tempo to write metrics derieved from traces directly to Prometheus to account these metrics to the correct services.
+
+### Secrets in GIT
+
+I now of two ways to keep secrets in GIT:
+
+- Mozilla SOPS
+- Bitnami Sealed secrets
+
+Mozilla SOPS uses a GPG key to encrypt secrets before they are commited to a GIT repository, which are unencrypted during runtime by e.g. Flux CD. This requires both the developer as well as the infrastructure using the secret to have the keep. This can become challenging over time to keep track of the key.
+
+Bitnami sealed secrets uses a Kubernetes controller to decrypt secrets, which are encrypted on the Developer side using a CLI in such a way, that only the controller can decrypt them.
+
+### Remove clear secrets from GIT
+
+This really depends on the scope. Was the secret only commited to a branch in the last commit, remove it from the local repository, stage the change and amend the last commit.
+
+Was the secret commited a while ago and maybe even merged, this becomes alot more complicated. It requires not only removing it from the current HEAD, but also from the complete commit history, which becomes messy fast.
+
+`git filter-branch` can come in handy here, but [git-filter-repo](https://github.com/newren/git-filter-repo/) seems to be the better, more performant alternative.
+
+## Conclusion
+
+I had fun completing this challenge. I was able to draw from previous experience on pretty much every challenge, but I still learned a new thing or two. For example, I knew about the rollback feature in Kubernetes, but never actually had to use it before.
+
+I didn't find the challenge particularly difficult in any part, since I knew how I wanted to approach each topic and had a clear path in mind, except for the autoscaling thing.
+I had to think about the phrasing there for a minute.
+
+With ~ 244 minutes I am right on target, but I would contribute roughly 40 - 50% to writing documentation and I am now questioning, if I am a slow typer.
+
+At this point I want to thank you for this challenge, since it gave me the opportunity to revisit tools and topics I haven't actively worked on for some time and I genuinely had a good time doing it.
