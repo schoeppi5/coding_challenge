@@ -2,16 +2,19 @@
 
 ## Time spent
 
-Initial setup: ~40min
-App setup: tbd
-Logging: tbd
-HPA: tbd 
-Templating: tbd
-Rollback: tbd
-Metrics: tbd
-CI/CD tool choice: tbd
+- Initial setup: ~40min
+- App setup: ~15min
+- Logging: 90min
+- HPA: tbd 
+- Templating: tbd
+- Rollback: tbd
+- Metrics: tbd
+- CI/CD tool choice: tbd
 
-Total: tbd
+**Total: tbd**
+
+> Please keep in mind, that while some timestamps or uptimes in the screenshots and elsewhere might suggest, that I took way longer
+> for the tasks than I indicated above, but I did take breaks in between and didn't finish it all in one sitting 😉
 
 
 ## Step 0.1: Creating Kubernetes cluster
@@ -69,3 +72,69 @@ kubectl --context=kind-coding-challenge-cluster --namespace=app port-forward ser
 ```
 
 and visit [http://localhost:9090](http://localhost:9090) to access the demo app.
+
+With the setup out of the way, I can start with the first challenge! 🎉
+
+## Challenge 1: Logging
+
+The first question is, what a logging solution could look like in a Kubernetes environment.
+
+Having Grafana as a requirement and me having previous expirience with it, made picking [Grafana Loki](https://grafana.com/docs/loki/latest/) in combination with [Grafana Promtail](https://grafana.com/docs/loki/latest/clients/promtail/) a no-brainer.
+
+The idea behind it is quite simple:
+- Use Loki as the aggregation tool ("Like Prometheus, but for Logs!" (verbatim from the Loki logo))
+- Use Promtail as the collection agent
+
+The difference between Loki and Prometheus is, that Loki uses a *push* rather than a *pull* model. Where Prometheus polls each endpoint,
+Promtail collects all logs from the containers *stdout* and *pushes* them to Loki.
+
+Well, technically, Promtail scrapes the logs of the containers from the hosts filesystem. That's the reason, why Promtail mounts both `/var/lib/docker/containers` and `/var/log/pods` from the host machine.
+
+So in essence:
+
+container --logs--> stdout --*--> /var/log/pods <-- Promtail --> Loki <--query-- Grafana 
+
+> \* I am guessing this is done by the kubelet, but I am not entirly sure here
+
+Installing both components is rather straight-forward:
+- Customize the `values.yaml` file shipped with the Helm chart
+- Look up some configuration options
+  I was at first a bit confused, how I can tell the Helm chart to install Loki in single-binary mode, but discovered, that it does that
+  on its own, once you tell it to use the filesystem for storage (https://grafana.com/docs/loki/latest/installation/helm/configure-storage/)
+- Install the Helm chart
+
+After that is done, we can be happy, that all the pods are starting up correctly:
+![logging_startup.png](img/logging_startup.png)
+
+And we can even see logs, once Loki is configured as a datasource in Grafana:
+![loki_datasource](img/loki_datasource.png)
+
+![logs](img/logs.png)
+
+Now this is well and good, but I don't want to configure the Grafana datasource everytime I reinstall it or Grafana is restarted.
+Luckily, the Grafana Helm chart (part of the kube-prometheus-stack Helm chart) comes with a handy sidecar container enabling me to
+define a datasource in a configmap and the sidecar then updates Grafana during runtime using the API.
+
+All we need to add to the `values.yaml` of the Helm chart is:
+
+```yaml
+grafana:
+...
+additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://logging.logging.svc.cluster.local:3100
+      jsonData:
+        maxLines: 1000
+```
+
+and now, even after deleting the Grafana pod:
+
+![delete_grafana](img/delete_grafana.png)
+
+the datasource is still there:
+
+![datasources](img/datasources.png)
+
+
