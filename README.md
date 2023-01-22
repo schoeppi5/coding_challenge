@@ -4,7 +4,7 @@
   - [Time spent](#time-spent)
   - [Step 0.1: Creating Kubernetes cluster](#step-01-creating-kubernetes-cluster)
   - [Step 0.2: Deploying monitoring solution](#step-02-deploying-monitoring-solution)
-  - [Step 0.3: Creating a Helm chart for the demo application](#step-03-creating-a-helm-chart-for-the-demo-application)
+  - [Step 0.3: Templating the demo application](#step-03-templating-the-demo-application)
   - [Challenge 1: Logging](#challenge-1-logging)
   - [Challenge 2: Autoscaling](#challenge-2-autoscaling)
   - [Challenge 3: Templating issues](#challenge-3-templating-issues)
@@ -48,10 +48,6 @@
 > I am not sure, if the preparation time should be included here or not.
 > I included it for completeness sake.
 
-> Please keep in mind, that while some timestamps or uptimes in the screenshots and elsewhere might suggest, that I took way longer
-> for the tasks than I indicated above, but I did take breaks in between and didn't finish it all in one sitting 😉
-
-
 ## Step 0.1: Creating Kubernetes cluster
 
 I choose [kind](https://kind.sigs.k8s.io/) for my local cluster, because of it's simplicity and configurability, which might come in handy later on.
@@ -62,7 +58,7 @@ You can find the configuration used for the cluster in [./kind/config.yaml](kind
 
 Prometheus and Grafana are set as requirements and the easiest way to deploy both and all the extra components needed for a comprehensive monitoring solution is the [kube-prometheus-stack Helm chart](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack).
 
-It also comes with the [Prometheus operator](https://github.com/prometheus-operator/prometheus-operator) origianlly developed at CoreOS, which will make integrating the demo application later on just a bit easier, thanks to its `Pod`- and `Servicemonitor` CRDs.
+It also comes with the [Prometheus operator](https://github.com/prometheus-operator/prometheus-operator) originally developed at CoreOS, which will make integrating the demo application later on just a bit easier, thanks to its `Pod`- and `Servicemonitor` CRDs.
 
 You can find the `values.yaml` used for the installation [here](k8s/helm/prometheus-operator/values.yaml).
 
@@ -76,13 +72,13 @@ and visit [http://localhost:8080](http://localhost:8080) to access Grafana.
 
 The credentials are **admin:prom-operator**.
 
-## Step 0.3: Creating a Helm chart for the demo application
+## Step 0.3: Templating the demo application
 
 Since the challenge calls for all deployments to use some kind of templating, I am going to use `kustomize` for the demo application.
 There are two reasons for this decision:
 
-1. To introduce some varity into the project.
-   Alot of the things I will deploy during this challenge are going to use Helm, so why not keep it interesting?
+1. To introduce some variety into the project.
+   A lot of the things I will deploy during this challenge are going to use Helm, so why not keep it interesting?
 2. It is a very simple app.
    The app doesn't need a lot to work, so why overcomplicate?
 
@@ -96,7 +92,7 @@ $ k create service clusterip --dry-run=server --namespace app --tcp=8080:80 kuar
 
 Then, I stripped out the unnecessary (runtime) bits such as `uid`, `creationTimestamp` and `status: {}` and added them to the kustomize directory.
 
-I then added a lable to tie the service and the pod resulting from the deployment together and used the *image transformer* to manage the image in the `kustomization.yaml` file.
+I then added a label to tie the service and the pod resulting from the deployment together and used the *image transformer* to manage the image in the `kustomization.yaml` file.
 
 You can find the demo application files [here](k8s/kustomize/kuard).
 
@@ -114,7 +110,7 @@ With the setup out of the way, I can start with the first challenge! 🎉
 
 The first question is, what a logging solution could look like in a Kubernetes environment.
 
-Having Grafana as a requirement and me having previous expirience with it, made picking [Grafana Loki](https://grafana.com/docs/loki/latest/) in combination with [Grafana Promtail](https://grafana.com/docs/loki/latest/clients/promtail/) a no-brainer.
+Having Grafana as a requirement and me having previous experience with it, made picking [Grafana Loki](https://grafana.com/docs/loki/latest/) in combination with [Grafana Promtail](https://grafana.com/docs/loki/latest/clients/promtail/) a no-brainer.
 
 The idea behind it is quite simple:
 - Use Loki as the aggregation tool ("Like Prometheus, but for Logs!" (verbatim from the Loki logo))
@@ -129,7 +125,7 @@ So in essence:
 
 container --logs--> stdout --*--> /var/log/pods <-- Promtail --> Loki <--query-- Grafana 
 
-> \* I am guessing this is done by the kubelet, but I am not entirly sure here
+> \* I am guessing this is done by the kubelet, but I am not entirely sure here
 
 Installing both components is rather straight-forward:
 - Customize the `values.yaml` file shipped with the Helm chart
@@ -146,7 +142,7 @@ And we can even see logs, once Loki is configured as a datasource in Grafana:
 
 ![logs](img/logs.png)
 
-Now this is well and good, but I don't want to configure the Grafana datasource everytime I reinstall it or Grafana is restarted.
+Now this is well and good, but I don't want to configure the Grafana datasource every time I reinstall it or Grafana is restarted.
 Luckily, the Grafana Helm chart (part of the kube-prometheus-stack Helm chart) comes with a handy sidecar container enabling me to
 define a datasource in a configmap and the sidecar then updates Grafana during runtime using the API.
 
@@ -179,7 +175,7 @@ really think of a Kubernetes native way to implement something like that aside f
 HTTP requests as it could. But that would neither assure an application can handle high real-world loads, nor would it be a particular
 meaningful test.
 
-But then the assure had me going towards autoscaling and particularly `Horizontal Pod Autoscaling` (aka. HPA).
+But then the *"assure"* had me going towards autoscaling and particularly `Horizontal Pod Autoscaling` (aka. HPA).
 
 So I went in that direction and hope this satisfies the challenge.
 
@@ -190,7 +186,7 @@ Implementing a rudimentary autoscaling setup is - again - really straight forwar
   ```bash
   kubectl autoscale --namespace app deployment kuard --min 1 --max 10 --cpu-percent=80 --name=kuard --output yaml --dry-run=client > k8s/kustomize/kuard/hpa.yaml
   ```
-   > It wouldn't let me do the server-side render (`--dry-run=server`) for some weird reason and just quite with:
+   > It wouldn't let me do the server-side render (`--dry-run=server`) for some weird reason and just quit with:
    > `error: /, Kind= doesn't support dryRun`
    > So I just went with the client-side render and that worked
 2. Add it to the kustomize directory and add it to the `resources` array in the `kustomization.yaml`
@@ -223,7 +219,7 @@ What had me worried was, that after that fix `kubectl top` was still showing me 
 Guessing there was something wrong with my Prometheus setup, I quickly did a `kubectl top` on the Grafana pod:
 ![metrics_working](img/metrics_working.png)
 
-which, to my great relieve, showed me, that everyting was working as intended, but the demo app just has a redicliously low CPU utilization.
+which, to my great relieve, showed me, that everything was working as intended, but the demo app just has a ridiculously low CPU utilization.
 
 And now, after checking the HPA again:
 ![hpa_working](img/hpa_working.png)
@@ -239,14 +235,14 @@ many ways to go about this.
 
 Depending on the templating tool used, these are generally easy to spot before an application is deployed.
 
-**Kustomize** is straight forward here. It will spot YAML format errors (wrong indentation manly) and will complain, if it can't accumulate all resources. This should cover the basic errors in how the Kustomize structure is setup and if the resources are formatted correctly.
+**Kustomize** is straight forward here. It will spot YAML format errors (wrong indentation mainly) and will complain, if it can't accumulate all resources. This should cover the basic errors in how the Kustomize structure is setup and if the resources are formatted correctly.
 
 **Helm** has similar possibilities. It comes with a `lint` sub-command, which generally spots most issues in the templating of a chart.
 It also has a `dry-run` capability, with which I can assure, that the chart actually renders to something resembling a Kubernetes manifest.
 
 ### Manifest validation
 
-Neither tool actually makes sure, that what it produces are valid Kubernetes Manifests. I can use a tool like [kubeconform](https://github.com/yannh/kubeconform) (which is inspired by `kubeeval`) to make sure, that all manifests a templating tool produces are actually valid Kubernetes manifests. It does that, by comparing all generated manifests (optained by either doing a `kustomize build` or a `helm template`) to their respective OpenAPIv3 specs. You can even extend these specs with the ones for CRDs to cover all manifests.
+Neither tool actually makes sure, that what it produces are valid Kubernetes Manifests. I can use a tool like [kubeconform](https://github.com/yannh/kubeconform) (which is inspired by `kubeeval`) to make sure, that all manifests a templating tool produces are actually valid Kubernetes manifests. It does that, by comparing all generated manifests (obtained by either doing a `kustomize build` or a `helm template`) to their respective OpenAPIv3 specs. You can even extend these specs with the ones for CRDs to cover all manifests.
 
 [Pluto](https://github.com/FairwindsOps/pluto) can also help to spot soon to be deprecated APIs early enough, before they are removed from Kubernetes.
 
@@ -257,20 +253,26 @@ At this point, we have validated, that the Helm chart / Kustomize config will pr
 If we want to take this one step further, we can also check for common best-practices.
 [kube-score](https://github.com/zegl/kube-score) can provide common best-practices for a lot of Kubernetes resources.
 
-This way, we can catch stuff like not set resource limits/requests, missing probes, Statefulsets without a headless service and many more, before the application ever gets deployed.
+This way, we can catch stuff like:
+
+- not set resource limits/requests
+- missing probes
+- Statefulsets without a headless service
+
+and many more, before the application ever gets deployed.
 
 Another way to go about this is with policies. Tools like [Datree](https://www.datree.io/) can check manifests against policies defined in a Kubernetes cluster, before they are deployed.
 These tools are most often combined with `ValidatingWebhooks`, which block misconfigured deployments at deploy-time.
 
 ### Implementation
 
-Since the challenge actually calls for an implementation and I am going to focus on `kubeconform` and `kube-score`.
+Since the challenge actually calls for an implementation, I am going to focus on `kubeconform` and `kube-score`.
 You can find the implementation in [the Kustomize directory](k8s/kustomize/kuard/check.sh).
 
 After changing the `containerPort` in the deployment from a number to a string, `kubeconform` complained about it:
 ![kubeconform](img/kubeconform.png)
 
-And `kube-score` actually found quite alot of infringements:
+And `kube-score` actually found quite a lot of infringements:
 ![kube-score_fail](img/kube-score_fail.png)
 
 Damn 😑. Let's fix those.
@@ -287,20 +289,20 @@ After fixing these failures, `kube-score` is happy again:
 by warning / enforcing security best-practices defined by the Kubernetes maintainers on a namespace level.
 This doesn't really fit the challenge, since this is only effective at deploy-time.
 
-There are also alot of useful plugins for IDEs and editors, that offer IntelliSense for Helm and Kubernetes objects
+There are also a lot of useful plugins for IDEs and editors, that offer IntelliSense for Helm and Kubernetes objects.
 
 ## Challenge 4: Rollback
 
-I just noticed, that I am running a bit out of time here, so I am going to try to keep my answeres a bit more precise and to the point.
+I just noticed, that I am running a bit out of time here, so I am going to try to keep my answers a bit more precise and to the point.
 
-The idea here is, if I rollout a new version of an app and notice something is wrong with the new version, I want to roll back to the previouse version.
+The idea here is, if I rollout a new version of an app and notice something is wrong with the new version, I want to roll back to the previous version.
 
 There are again multiple ways to go about this:
 
-- Kubernetes has a built in feature, that a Deployment keeps (by default) the last ten Replicasets.
-- Helm keeps all previously applied configurations of a release in secrets, so you can always to a `helm rollback` to a specific revision
+- Kubernetes has a built-in feature, that a Deployment keeps (by default) the last ten ReplicaSets.
+- Helm keeps all previously applied configurations of a release in secrets, so you can always do a `helm rollback` to a specific revision
 - You can employ more sophisticated deployment approaches such as Blue/Green deployments or canary releases.
-  Depending on their implementation, they use one of the machanisms described above to enable the user to switch between two versions
+  Depending on their implementation, they use one of the mechanisms described above to enable the user to switch between two versions
   deployed simultaneously
 
 Since I am using kustomize to deploy the app, I am going to use the built-in Kubernetes way of doing it.
@@ -317,8 +319,8 @@ We can see, that the pod was updated:
 Now we can do a rollback (or more accurately a `rollout undo`):
 ![rollback](img/rollback.png)
 
-We can check, that the old Replicaset was scaled up again: 
-![Replicasets](img/replicasets.png)
+We can check, that the old ReplicaSet was scaled up again: 
+![ReplicaSets](img/replicasets.png)
 
 And see, that a new (old) pod was created:
 ![old pod](img/old_pod.png)
@@ -334,23 +336,23 @@ Besides the normal Golang metrics (go-routine count, version, etc.), we can also
 
 Beside the metrics the application exports, we can also get metrics regarding the application from other pieces of the infrastructure:
 
-- cAdvisor (built in the Kubelet) tells us everything about the containers that make up the application
+- cAdvisor (built into the Kubelet) tells us everything about the containers that make up the application
 - Kube-state-metrics tells us everything about the Kubernetes-level resources (pods, services, etc.)
 
 ## Challenge 6: CI/CD tool choice
 
 There is a huge number of CI/CD tools to choose from here, so I am going to choose the once I am most familiar with or I see as a good fit.
 
-For building, testing and packaging / deliverying the app, I would choose [GitHub Actions](https://github.com/features/actions).
+For building, testing and packaging / delivering the app, I would choose [GitHub Actions](https://github.com/features/actions).
 
 - It is directly integrated into GitHub, where this repository is hosted
 - It can trigger builds on various different events, such as pushes, PR opened, merges and lots more
 - It is easy to use with an incredible number of officially and community maintained actions ready for use
-- I have (some) previouse experience with it, as we started using it in my current company
+- I have (some) previous experience with it, as we started using it at my current company
 
 For deploying the app to a Kubernetes cluster, I would choose [Flux CD](https://fluxcd.io/).
 
-- It has recently reached *Graduate* status within the CNCF, which reflects the majurity of the product
+- It has recently reached *Graduate* status within the CNCF, which reflects the maturity of the product
 - It brings a wealth of useful features to the table, such as Helm integration, Kustomize support, support for different sources (OCI, Git, HelmRepository), integration with Flagger (Deployment tool)
 - It is easy to setup and integrates well with GitHub (using `flux bootstrap` sets it up in a cluster and Flux manages itself)
 - I have about a year worth of experience with it and know my way around it
@@ -391,26 +393,26 @@ spec:
 
 ### Alerting
 
-Alerting within Kubernetes can come in many different shapes and sizes. Even the rather simle monitoring setup used in this demo already has two very common ways to facilitate alerting.
+Alerting within Kubernetes can come in many different shapes and sizes. Even the rather simple monitoring setup used in this demo already has two very common ways to facilitate alerting.
 
 Either Grafana or [Prometheus Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) could be used to achieve similar results.
 
-Alertmanager is generally more flexiible when it comes to what you want to alert on
+Alertmanager is generally more flexible when it comes to what you want to alert on
 and integrates very well with Prometheus.
 
 Grafana on the other hand, has taken a very central place in the observability market, integrates with pretty much any monitoring and alerting system out there, even Alertmanager.
 
-The general idea of alerting is, that if a certain query produces an outcome greater or lesser a certain threshold; I want to now about it. This also extends to outages, but the idea stays the same.
+The general idea of alerting is, that if a certain query produces an outcome greater or lesser a certain threshold, I want to now about it. This also extends to outages, but the idea stays the same.
 
-What would this look like? In this specific demo, Prometheus operator can also operate Alertmanager installations and comes with CRDs to define so called Prometheus rules. These rules esentially contain the query, the threshold and some metadata. Alertmanager than looks at the firing alerts and based on its config and the alert, decides, where this alert should go to.
+What would this look like? In this specific demo, Prometheus operator can also operate Alertmanager installations and comes with CRDs to define so called Prometheus rules. These rules essentially contain the query, the threshold and some metadata. Alertmanager than looks at the firing alerts and based on its config and the alert, decides, where this alert should go to.
 
 ### TSDB writing
 
 Prometheus main way of getting metrics in its TSDB is by ingesting them. This is essentially the process after scraping them from a target. The metrics get labeled and sorted in their timeseries.
 
-There is however another way to get metrics into Prometheus. Prometheus introduced the Remote write API, that enables other componets to write metrics more or less directly to the TSDB without having to go through scraping.
+There is however another way to get metrics into Prometheus. Prometheus introduced the Remote write API, that enables other components to write metrics more or less directly to the TSDB without having to go through scraping.
 
-This is for example used by Grafana Tempo to write metrics derieved from traces directly to Prometheus to account these metrics to the correct services.
+This is for example used by Grafana Tempo to write metrics derived from traces directly to Prometheus to account these metrics to the correct services.
 
 ### Secrets in GIT
 
@@ -419,15 +421,15 @@ I now of two ways to keep secrets in GIT:
 - Mozilla SOPS
 - Bitnami Sealed secrets
 
-Mozilla SOPS uses a GPG key to encrypt secrets before they are commited to a GIT repository, which are unencrypted during runtime by e.g. Flux CD. This requires both the developer as well as the infrastructure using the secret to have the keep. This can become challenging over time to keep track of the key.
+Mozilla SOPS uses a GPG key to encrypt secrets before they are committed to a GIT repository, which are unencrypted during runtime by e.g. Flux CD. This requires both the developer as well as the infrastructure using the secret to have the key. This can become challenging over time to keep track of the key.
 
 Bitnami sealed secrets uses a Kubernetes controller to decrypt secrets, which are encrypted on the Developer side using a CLI in such a way, that only the controller can decrypt them.
 
 ### Remove clear secrets from GIT
 
-This really depends on the scope. Was the secret only commited to a branch in the last commit, remove it from the local repository, stage the change and amend the last commit.
+This really depends on the scope. Was the secret only committed to a branch in the last commit, remove it from the local repository, stage the change and amend the last commit.
 
-Was the secret commited a while ago and maybe even merged, this becomes alot more complicated. It requires not only removing it from the current HEAD, but also from the complete commit history, which becomes messy fast.
+Was the secret committed a while ago and maybe even merged, this becomes a lot more complicated. It requires not only removing it from the current HEAD, but also from the complete commit history, which becomes messy fast.
 
 `git filter-branch` can come in handy here, but [git-filter-repo](https://github.com/newren/git-filter-repo/) seems to be the better, more performant alternative.
 
@@ -436,8 +438,7 @@ Was the secret commited a while ago and maybe even merged, this becomes alot mor
 I had fun completing this challenge. I was able to draw from previous experience on pretty much every challenge, but I still learned a new thing or two. For example, I knew about the rollback feature in Kubernetes, but never actually had to use it before.
 
 I didn't find the challenge particularly difficult in any part, since I knew how I wanted to approach each topic and had a clear path in mind, except for the autoscaling thing.
-I had to think about the phrasing there for a minute.
 
-With ~ 244 minutes I am right on target, but I would contribute roughly 40 - 50% to writing documentation and I am now questioning, if I am a slow typer.
+With ~ 244 minutes I am right on target, but I would contribute roughly 40 - 50% to writing documentation and I am now questioning, if I am a slow typist.
 
 At this point I want to thank you for this challenge, since it gave me the opportunity to revisit tools and topics I haven't actively worked on for some time and I genuinely had a good time doing it.
